@@ -356,6 +356,8 @@ def output_json(
     arch_totals,
     special_sections=None,
     actual_kernels=None,
+    kernel_counts_by_arch=None,
+    total_kernel_count=0,
 ):
     """Output results in JSON format"""
     total_size = sum(all_symbols.values())
@@ -369,6 +371,7 @@ def output_json(
         "kernel_code_size_formatted": format_size(kernels_total_size),
         "non_code_size": special_total_size,
         "non_code_size_formatted": format_size(special_total_size),
+        "total_kernels": total_kernel_count,
         "architectures": {},
         "non_code_sections": [],
         "kernels": [],
@@ -382,10 +385,12 @@ def output_json(
             if sum(arch_totals.values()) > 0
             else 0
         )
+        kernel_count = kernel_counts_by_arch.get(arch, 0) if kernel_counts_by_arch else 0
         result["architectures"][arch] = {
             "size": size,
             "size_formatted": format_size(size),
             "percentage": round(percentage, 2),
+            "kernel_count": kernel_count,
         }
 
     # Non-code sections
@@ -687,10 +692,17 @@ Examples:
             logger.warning(f"No kernels matched the filter pattern '{args.filter}'")
             sys.exit(0)
 
+    # Count kernels by architecture
+    kernel_counts_by_arch = {
+        arch: len(actual_kernels_by_arch[arch]) for arch in actual_kernels_by_arch
+    }
+    total_kernel_count = len(actual_kernels)
+
     # Output based on format
     if args.format == "json":
         output_json(
-            all_symbols, symbols_by_arch, arch_totals, special_sections, actual_kernels
+            all_symbols, symbols_by_arch, arch_totals, special_sections, actual_kernels,
+            kernel_counts_by_arch, total_kernel_count
         )
         return
 
@@ -714,6 +726,9 @@ Examples:
             )
             arch_table.add_column("Architecture", style="cyan", width=15)
             arch_table.add_column(
+                "Kernels", justify="right", style="blue", width=10
+            )
+            arch_table.add_column(
                 "Total Size", justify="right", style="yellow", width=15
             )
             arch_table.add_column(
@@ -724,13 +739,15 @@ Examples:
             for arch in sorted(arch_totals.keys()):
                 size = arch_totals[arch]
                 percentage = (size / total_all_arch * 100) if total_all_arch > 0 else 0
+                kernel_count = kernel_counts_by_arch.get(arch, 0)
                 arch_table.add_row(
-                    arch.upper(), format_size(size), f"{percentage:.1f}%"
+                    arch.upper(), str(kernel_count), format_size(size), f"{percentage:.1f}%"
                 )
 
             arch_table.add_section()
             arch_table.add_row(
                 "[bold]TOTAL[/bold]",
+                f"[bold]{total_kernel_count}[/bold]",
                 f"[bold]{format_size(total_all_arch)}[/bold]",
                 "[bold]100.0%[/bold]",
             )
@@ -786,9 +803,9 @@ Examples:
 
         # Overall top kernels table
         title = (
-            "Top CUDA Kernels (All Architectures)"
+            f"Top CUDA Kernels (All Architectures) - {total_kernel_count} Total"
             if not args.arch
-            else f"Top CUDA Kernels ({args.arch.upper()})"
+            else f"Top CUDA Kernels ({args.arch.upper()}) - {total_kernel_count} Total"
         )
         if args.filter:
             title += f" - Filter: '{args.filter}'"
@@ -849,8 +866,9 @@ Examples:
                 )
                 arch_kernel_total = sum(arch_kernels.values())
 
+                arch_kernel_count = kernel_counts_by_arch.get(arch, len(arch_kernels))
                 per_arch_table = Table(
-                    title=f"CUDA Kernels for {arch.upper()}",
+                    title=f"CUDA Kernels for {arch.upper()} - {arch_kernel_count} Total",
                     box=box.ROUNDED,
                     show_header=True,
                     header_style="bold magenta",
@@ -901,6 +919,7 @@ Examples:
         # Fallback to basic output
         print("\n" + "=" * 100)
         print("CUDA Kernel Size Report")
+        print(f"Total Kernels: {total_kernel_count}")
         print("=" * 100)
 
         # Print special sections first
