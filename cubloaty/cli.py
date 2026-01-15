@@ -385,7 +385,9 @@ def output_json(
             if sum(arch_totals.values()) > 0
             else 0
         )
-        kernel_count = kernel_counts_by_arch.get(arch, 0) if kernel_counts_by_arch else 0
+        kernel_count = (
+            kernel_counts_by_arch.get(arch, 0) if kernel_counts_by_arch else 0
+        )
         result["architectures"][arch] = {
             "size": size,
             "size_formatted": format_size(size),
@@ -701,8 +703,13 @@ Examples:
     # Output based on format
     if args.format == "json":
         output_json(
-            all_symbols, symbols_by_arch, arch_totals, special_sections, actual_kernels,
-            kernel_counts_by_arch, total_kernel_count
+            all_symbols,
+            symbols_by_arch,
+            arch_totals,
+            special_sections,
+            actual_kernels,
+            kernel_counts_by_arch,
+            total_kernel_count,
         )
         return
 
@@ -725,9 +732,7 @@ Examples:
                 header_style="bold magenta",
             )
             arch_table.add_column("Architecture", style="cyan", width=15)
-            arch_table.add_column(
-                "Kernels", justify="right", style="blue", width=10
-            )
+            arch_table.add_column("Kernels", justify="right", style="blue", width=10)
             arch_table.add_column(
                 "Total Size", justify="right", style="yellow", width=15
             )
@@ -741,7 +746,10 @@ Examples:
                 percentage = (size / total_all_arch * 100) if total_all_arch > 0 else 0
                 kernel_count = kernel_counts_by_arch.get(arch, 0)
                 arch_table.add_row(
-                    arch.upper(), str(kernel_count), format_size(size), f"{percentage:.1f}%"
+                    arch.upper(),
+                    str(kernel_count),
+                    format_size(size),
+                    f"{percentage:.1f}%",
                 )
 
             arch_table.add_section()
