@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cubloaty"
-version = "0.1.0b2"
+version = "0.1.0b3"
 description = "Analyze CUDA binary sizes in .so files - bloaty for CUDA kernels"
 readme = "README.md"
 requires-python = ">=3.8"
