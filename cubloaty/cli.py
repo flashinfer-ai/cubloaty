@@ -150,22 +150,34 @@ def extract_cubins_from_fatbin(fatbin_file, output_dir):
         return []
 
 
-def demangle_symbol(symbol):
-    """Demangle C++ symbol names
+def demangle_symbols(symbols):
+    """Batch-demangle C++ symbol names with a single c++filt process
 
-    Uses c++filt to demangle C++ symbols. If demangling fails,
-    returns the original symbol name.
+    Spawning one c++filt per symbol is prohibitively slow for large
+    libraries (tens of thousands of symbols), so all symbols are piped
+    through one process. Symbols that fail to demangle are kept as-is.
     """
+    symbols = list(symbols)
+    if not symbols:
+        return {}
     try:
         result = subprocess.run(
-            ["c++filt", symbol], capture_output=True, text=True, check=True
+            ["c++filt"],
+            input="\n".join(symbols),
+            capture_output=True,
+            text=True,
+            check=True,
         )
-        demangled = result.stdout.strip()
-        return demangled if demangled else symbol
-    except Exception as e:
-        # Symbol demangling failure is not critical, just return original
-        logger.debug(f"Failed to demangle symbol {symbol}: {e}")
-        return symbol
+        demangled = result.stdout.splitlines()
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        logger.debug(f"Failed to batch-demangle symbols: {e}")
+        return {s: s for s in symbols}
+    if len(demangled) != len(symbols):
+        logger.debug(
+            f"c++filt returned {len(demangled)} lines for {len(symbols)} symbols"
+        )
+        return {s: s for s in symbols}
+    return dict(zip(symbols, demangled))
 
 
 def analyze_cubin_sizes(cubin_file):
@@ -256,6 +268,7 @@ def analyze_cubin_sizes(cubin_file):
         )
 
         # Parse readelf output to extract function names and sizes
+        mangled_sizes = {}
         for line in result.stdout.split("\n"):
             # Look for FUNC entries
             if "FUNC" in line:
@@ -267,12 +280,14 @@ def analyze_cubin_sizes(cubin_file):
                         # The symbol name is the last part
                         name = parts[-1]
                         if size > 0:  # Only include functions with non-zero size
-                            # Demangle the symbol
-                            demangled = demangle_symbol(name)
-                            symbols[demangled] = size
+                            mangled_sizes[name] = size
                     except (ValueError, IndexError):
                         # Skip malformed symbol entries
                         continue
+
+        # Demangle all symbols in a single c++filt invocation
+        for mangled, demangled in demangle_symbols(mangled_sizes).items():
+            symbols[demangled] = mangled_sizes[mangled]
 
         # Add section breakdown as special entries
         # Use a special prefix to avoid Rich markup interpretation
